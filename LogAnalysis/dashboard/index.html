@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>JVM 诊断报告</title>
+  <!-- ✅ 新增：引入 marked.js -->
+  <script src="https://cdn.bootcdn.net/ajax/libs/marked/16.3.0/lib/marked.umd.min.js"></script>
+  <style>
+    :root {
+      --primary: #3498db;
+      --success: #27ae60;
+      --warning: #f39c12;
+      --danger: #e74c3c;
+      --light: #ecf0f1;
+      --dark: #2c3e50;
+      --gray: #95a5a6;
+      --card-bg: white;
+      --border: #e0e0e0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background-color: #f5f7fa;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--border);
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    h1 {
+      color: var(--dark);
+      font-size: 2.2rem;
+      margin: 0;
+      font-weight: 600;
+    }
+
+    .refresh-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 30px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+
+    .refresh-btn:hover {
+      background: #2980b9;
+    }
+
+    .refresh-btn:disabled {
+      background: #bdc3c7;
+      cursor: not-allowed;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      padding: 24px;
+      margin-bottom: 24px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card:hover {
+      box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+      transform: translateY(-2px);
+    }
+
+    .card-header {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: var(--dark);
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h2 {
+      color: var(--dark);
+      font-size: 1.6rem;
+      margin-top: 0;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h3 {
+      color: var(--primary);
+      font-size: 1.3rem;
+      margin: 0 0 16px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h3::before {
+      content: "🔍";
+    }
+
+    .thread-state-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0 16px;
+    }
+
+    .thread-tag {
+      background: var(--light);
+      color: var(--dark);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .thread-tag.RUNNABLE { background: #ffeaa7; color: #d35400; }
+    .thread-tag.WAITING { background: #74b9ff; color: white; }
+    .thread-tag.TIMED_WAITING { background: #a29bfe; color: white; }
+    .thread-tag.BLOCKED { background: #fd79a8; color: white; }
+
+    ul {
+      padding-left: 20px;
+      margin: 8px 0;
+    }
+
+    li {
+      margin-bottom: 6px;
+      position: relative;
+    }
+
+    li::before {
+      content: "•";
+      color: var(--primary);
+      font-weight: bold;
+      position: absolute;
+      left: -16px;
+    }
+
+    .no-issue {
+      text-align: center;
+      color: var(--success);
+      font-style: italic;
+      padding: 20px;
+      font-size: 1.1rem;
+    }
+
+    /* ✅ 新增：Markdown 预览样式 */
+    .markdown-body {
+      line-height: 1.6;
+      color: #333;
+    }
+    .markdown-body h1,
+    .markdown-body h2,
+    .markdown-body h3 {
+      margin-top: 24px;
+      margin-bottom: 16px;
+      font-weight: 600;
+      color: var(--dark);
+    }
+    .markdown-body p {
+      margin: 12px 0;
+    }
+    .markdown-body ul, .markdown-body ol {
+      padding-left: 24px;
+      margin: 12px 0;
+    }
+    .markdown-body li {
+      margin-bottom: 6px;
+    }
+    .markdown-body code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.95em;
+    }
+    .markdown-body pre {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 16px 0;
+    }
+    .markdown-body pre code {
+      background: none;
+      padding: 0;
+      font-size: 0.9em;
+    }
+
+    .loading, .error {
+      text-align: center;
+      padding: 24px;
+      border-radius: 12px;
+    }
+
+    .loading {
+      color: var(--gray);
+    }
+
+    .error {
+      background: #fdf2f2;
+      color: var(--danger);
+      border: 1px solid #fadbd8;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 16px;
+      }
+      h1 {
+        font-size: 1.8rem;
+      }
+      .refresh-btn {
+        width: 100%;
+        justify-content: center;
+      }
+      .card {
+        padding: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>JVM 性能诊断报告</h1>
+      <button id="refresh-btn" class="refresh-btn" title="重新加载 data.json">
+        🔄 刷新
+      </button>
+    </header>
+
+    <div id="loading" class="loading">正在加载诊断数据…</div>
+    <div id="error" class="error" style="display:none;"></div>
+
+    <div id="root-cause-analysis"></div>
+
+    <div class="card">
+      <h2>综合诊断结论</h2>
+      <div id="overall-diagnosis"></div>
+    </div>
+
+    <!-- ✅ 更新：原始报告卡片（内嵌预览） -->
+    <div class="card" id="original-report-card" style="display:none;">
+      <div class="card-header">📄 原始分析报告</div>
+      <div id="markdown-preview" class="markdown-body">
+        <!-- 动态渲染 Markdown -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const REPORT_URL = 'data.json';
+
+    function escapeHtml(text) {
+      if (typeof text !== 'string') return String(text);
+      const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      };
+      return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
+    function isModuleEmpty(module) {
+      if (!module || typeof module !== 'object') return true;
+      return Object.values(module).every(value => {
+        if (value === null || value === undefined) return true;
+        if (Array.isArray(value)) return value.length === 0;
+        if (typeof value === 'object') return Object.keys(value).length === 0;
+        return false;
+      });
+    }
+
+    function renderThreadState(stateObj) {
+      if (!stateObj || Object.keys(stateObj).length === 0) return '';
+      let html = '<div class="thread-state-tags">';
+      for (const [state, count] of Object.entries(stateObj)) {
+        const cls = state.replace(/\s+/g, '_');
+        html += `<span class="thread-tag ${cls}">${escapeHtml(state)}: ${count}</span>`;
+      }
+      html += '</div>';
+      return html;
+    }
+
+    const MODULE_TITLES = {
+      thread: '线程分析',
+      gc: 'GC 分析',
+      memory: '内存分析'
+    };
+
+    function pick(obj, ...keys) {
+      for (const key of keys) {
+        if (obj && obj[key] !== undefined && obj[key] !== null) return obj[key];
+      }
+      return undefined;
+    }
+
+    function renderRootCauseAnalysis(container, rootCauseAnalysis) {
+      const validModules = Object.entries(rootCauseAnalysis)
+        .filter(([_, module]) => !isModuleEmpty(module));
+
+      if (validModules.length === 0) {
+        container.innerHTML = '<div class="card"><p class="no-issue">✅ 未发现需要分析的性能问题</p></div>';
+        return;
+      }
+
+      let html = '';
+      for (const [moduleName, data] of validModules) {
+        const title = MODULE_TITLES[moduleName] || moduleName;
+        html += `<div class="card"><h3>${escapeHtml(title)}</h3>`;
+        html += renderThreadState(pick(data, 'thread_states', '线程状态'));
+        const potential = pick(data, 'potential_issue', '潜在问题');
+        if (potential) html += `<p><strong>⚠️ 潜在问题:</strong> ${escapeHtml(potential)}</p>`;
+        const suspects = pick(data, 'leak_suspects', '问题嫌疑对象');
+        if (suspects) html += `<p><strong>🎯 问题嫌疑对象:</strong> ${escapeHtml(suspects)}</p>`;
+        const gcAlgo = pick(data, 'gc_algorithm', 'GC算法');
+        if (gcAlgo) html += `<p><strong>♻️ GC算法:</strong> ${escapeHtml(gcAlgo)}</p>`;
+        const maxPause = pick(data, 'max_pause_ms', '最大暂停时间');
+        if (maxPause !== undefined) {
+          html += `<p><strong>⏱️ 最大暂停时间:</strong> ${maxPause} ms</p>`;
+        }
+        const warning = pick(data, 'resource_warning', '资源警告');
+        if (warning) html += `<p><strong>❗ 资源警告:</strong> ${escapeHtml(warning)}</p>`;
+        const consumers = pick(data, 'top_memory_consumers', '主要内存消耗');
+        if (consumers && consumers.length > 0) {
+          html += `<p><strong>🧠 主要内存消耗:</strong></p><ul>`;
+          for (const item of consumers) {
+            html += `<li>${escapeHtml(item)}</li>`;
+          }
+          html += `</ul>`;
+        }
+        const recs = pick(data, 'recommendations', '建议');
+        if (recs) {
+          html += `<p><strong>💡 建议:</strong></p><ul>`;
+          const suggestions = Array.isArray(recs) ? recs : [recs];
+          for (const s of suggestions) {
+            html += `<li>${escapeHtml(s)}</li>`;
+          }
+          html += `</ul>`;
+        }
+        html += `</div>`;
+      }
+      container.innerHTML = html;
+    }
+
+    function renderOverallDiagnosis(container, diagnosis) {
+      if (!diagnosis) {
+        container.innerHTML = '<p>无综合诊断信息。</p>';
+        return;
+      }
+
+      let html = '';
+      const systemStatus = pick(diagnosis, 'system_status', '系统状态');
+      if (systemStatus) {
+        const statusColor = String(systemStatus).includes('健康') || String(systemStatus).toLowerCase().includes('stable')
+          ? 'var(--success)' : 'var(--warning)';
+        html += `<p><strong>🟢 系统状态:</strong> <span style="color:${statusColor}">${escapeHtml(systemStatus)}</span></p>`;
+      }
+      const mainIssue = pick(diagnosis, 'main_issue', '主要问题');
+      if (mainIssue) html += `<p><strong>🔥 主要问题:</strong> ${escapeHtml(mainIssue)}</p>`;
+      const actions = pick(diagnosis, 'recommended_actions', '建议行动');
+      if (actions && actions.length > 0) {
+        html += `<p><strong>✅ 建议行动:</strong></p><ul>`;
+        for (const action of actions) {
+          html += `<li>${escapeHtml(action)}</li>`;
+        }
+        html += `</ul>`;
+      }
+      container.innerHTML = html || '<p>无诊断结论。</p>';
+    }
+
+    // ✅ 新增：加载并渲染 Markdown 报告
+    async function loadAndRenderMarkdown(sourceLog) {
+      const previewEl = document.getElementById('markdown-preview');
+      const card = document.getElementById('original-report-card');
+
+      if (!sourceLog || typeof sourceLog !== 'string') {
+        card.style.display = 'none';
+        return;
+      }
+
+      try {
+        // ✅ 关键：encodeURI 解决中文路径乱码/404
+        const safeUrl = encodeURI(sourceLog);
+        const res = await fetch(safeUrl + '?t=' + Date.now()); // 防缓存
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const markdownText = await res.text();
+        // 渲染为 HTML（marked 自动处理 XSS 转义）
+        const html = marked.parse(markdownText, {
+          gfm: true,
+          breaks: true
+        });
+
+        previewEl.innerHTML = html;
+        card.style.display = 'block';
+      } catch (err) {
+        console.error('加载原始报告失败:', err);
+        previewEl.innerHTML = `<p style="color:var(--danger);">⚠️ 无法加载原始报告：<code>${escapeHtml(err.message)}</code></p>`;
+        card.style.display = 'block';
+      }
+    }
+
+    async function loadReport() {
+      const loadingEl = document.getElementById('loading');
+      const errorEl = document.getElementById('error');
+      const refreshBtn = document.getElementById('refresh-btn');
+
+      loadingEl.style.display = 'block';
+      errorEl.style.display = 'none';
+      refreshBtn.disabled = true;
+
+      try {
+        const res = await fetch(REPORT_URL + '?t=' + Date.now());
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const data = await res.json();
+
+        renderRootCauseAnalysis(document.getElementById('root-cause-analysis'), data.summary.root_cause_analysis);
+        renderOverallDiagnosis(
+          document.getElementById('overall-diagnosis'),
+          data.summary.overall_diagnosis || data.summary.综合诊断结论
+        );
+        
+        // ✅ 替换：不再设置链接，改为加载并渲染 Markdown
+        loadAndRenderMarkdown(data.source_log);
+
+        loadingEl.style.display = 'none';
+      } catch (err) {
+        loadingEl.style.display = 'none';
+        errorEl.style.display = 'block';
+        errorEl.textContent = `❌ 加载失败: ${err.message}`;
+        console.error('Report load error:', err);
+      } finally {
+        refreshBtn.disabled = false;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadReport();
+      document.getElementById('refresh-btn').addEventListener('click', loadReport);
+    });
+  </script>
+</body>
+</html>

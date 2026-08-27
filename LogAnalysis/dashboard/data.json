@@ -1,0 +1,47 @@
+{
+  "summary": {
+    "root_cause_analysis": {
+      "thread": {
+        "thread_states": {
+          "RUNNABLE": 62,
+          "WAITING": 78,
+          "TIMED_WAITING": 48
+        },
+        "potential_issue": "RUNNABLE count is high; confirm whether threads are on-CPU or blocked in native I/O.",
+        "recommendations": "Correlate with host CPU. Inspect RUNNABLE stacks for EPoll.wait versus busy loops."
+      },
+      "gc": {
+        "gc_algorithm": "G1 GC",
+        "max_pause_ms": 700,
+        "resource_warning": "real > usr + sys on some pauses (CPU throttle or slow log I/O).",
+        "recommendations": [
+          "Set explicit container CPU requests/limits.",
+          "Cap MaxGCPauseMillis to a realistic target.",
+          "Write GC logs to local disk, not network storage."
+        ]
+      },
+      "memory": {
+        "leak_suspects": "Worker threads retaining large object graphs.",
+        "top_memory_consumers": [
+          "java.util.ArrayList",
+          "byte[]"
+        ],
+        "recommendations": [
+          "Avoid unbounded findAll() / missing pagination.",
+          "Clear ThreadLocals after the request.",
+          "Confirm GC roots in MAT Path to GC Roots."
+        ]
+      }
+    },
+    "overall_diagnosis": {
+      "system_status": "Stable, with latent resource and memory-retention risks.",
+      "main_issue": "GC pauses amplified by CPU contention; heap retained by request-scoped collections.",
+      "recommended_actions": [
+        "Increase CPU quota if throttled.",
+        "Page large queries.",
+        "Re-capture dumps after the change to verify."
+      ]
+    }
+  },
+  "source_log": "./agent_outputs/sample.md"
+}

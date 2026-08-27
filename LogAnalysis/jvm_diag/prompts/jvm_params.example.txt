@@ -1,0 +1,6 @@
+# Replace with the JVM flags used in the environment you are diagnosing.
+-XX:+UseG1GC
+-XX:MaxRAMPercentage=75.0
+-XX:MaxDirectMemorySize=512m
+-XX:+HeapDumpOnOutOfMemoryError
+-Xlog:gc*:file=/tmp/app-gc.log:time,tags:filecount=5,filesize=10M
